@@ -75,16 +75,16 @@ def exif_fuzz(counter, data, crashes, lock):
     if counter % 100 == 0:
         log.info(f"counter : {counter}")
 
-    cmd = 'exif mutated.jpg'
+    cmd = './exif mutated.jpg'
     out, return_code = run('sh  -c ' + quote(cmd), withexitstatus=True)
     log.info(f"return_code : {return_code}")
 
     if b"Segmentation" in out:
         with lock:
-            crashes += 1
-            with open(f'./output/crash{crashes}.jpg', 'wb+') as f:
+            crashes.value += 1
+            with open(f'./output/crash{crashes.value}.jpg', 'wb+') as f:
                 f.write(data)
-        log.success(f"Crash found {crashes}")
+        log.success(f"Crash found {crashes.value}")
 
 
 def fuzz_worker(filename, start_counter, end_counter, crashes, lock):
