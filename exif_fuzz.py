@@ -1,23 +1,21 @@
 #!/usr/bin/python3
 import sys
 import random
-from pipes import quote
-from pexpect import run
+from subprocess import Popen, PIPE
 from pwn import log
-from multiprocessing import Process, Value, Lock
+
 
 # 原始文件读取字节流
-
-
 def get_bytes(filename):
     with open(filename, 'rb') as f:
         return bytearray(f.read())
 
 
 # 原始字节流写入变异文件
-def create_newfile(data, filename="mutated.jpg"):
-    with open(filename, 'wb+') as f:
+def create_newfile(data):
+    with open("mutated.jpg", 'wb+') as f:
         f.write(data)
+        f.close()
     return
 
 
@@ -27,11 +25,14 @@ class Mutation:
         # 随机选择翻转下标
         chosen_index = []
         indexes = range(2, len(data)-2)
-        num_flips = int((len(data)-2) * .01)
+        num_flips = int(len(data)-2)*.01
         counter = 0
         while counter < num_flips:
             chosen_index.append(random.choice(indexes))
-            counter += 1
+            counter = counter + 1
+
+        # log.success(f"index : {chosen_index}")
+        # log.success(f"num : {counter}")
 
         # 翻转下标字节
         for i in chosen_index:
@@ -42,6 +43,7 @@ class Mutation:
             data[i] = current ^ (1 << bit_flips)
 
         return data
+        # return chosen_index, counter
 
     @staticmethod
     def interest(data):
@@ -50,14 +52,18 @@ class Mutation:
                         (4, 0xffffffff), (4, 0x80000000), (4, 0x40000000), (4, 0x7fffffff), (4, 0)]
         chosen_index = []
         indexes = range(2, len(data)-2)
-        num_flips = int((len(data)-2) * .01)
+        num_flips = int(len(data)-2)*.01
         counter = 0
         while counter < num_flips:
             chosen_index.append(random.choice(indexes))
-            counter += 1
+            counter = counter + 1
+
+        # log.success(f"index : {chosen_index}")
+        # log.success(f"num : {counter}")
 
         for i in chosen_index:
             size, val = random.choice(interest_val)
+            # log.info(f"size , val : {size} , {hex(val)}")
             data[i:i+size] = val.to_bytes(size, 'big')
 
         return data
@@ -71,56 +77,41 @@ def random_mutation(data):
         return Mutation.interest(data)
 
 
-def exif_fuzz(counter, data, crashes, lock):
+def exif_fuzz(counter, data, crashes):
     if counter % 100 == 0:
         log.info(f"counter : {counter}")
 
-    cmd = './exif mutated.jpg'
-    out, return_code = run('sh  -c ' + quote(cmd), withexitstatus=True)
-    log.info(f"return_code : {return_code}")
+    p = Popen(['./exif', 'mutated.jpg'], stdout=PIPE, stderr=PIPE)
+    out, err = p.communicate()
 
-    if b"Segmentation" in out:
-        with lock:
-            crashes.value += 1
-            with open(f'./output/crash{crashes.value}.jpg', 'wb+') as f:
-                f.write(data)
-        log.success(f"Crash found {crashes.value}")
+    if p.returncode == -11:
+        crashes[0] = crashes[0] + 1
+        with open(f'./output/crash{crashes[0]}.jpg', 'wb+') as f:
+            f.write(data)
+            f.close()
+        return log.success(f"Crash found {crashes[0]}")
 
-
-def fuzz_worker(filename, start_counter, end_counter, crashes, lock):
-    for counter in range(start_counter, end_counter):
-        bytes_data = get_bytes(filename)
-        mutated_data = random_mutation(bytes_data)
-        create_newfile(mutated_data)
-        exif_fuzz(counter, mutated_data, crashes, lock)
+    return
 
 
 if __name__ == '__main__':
+    counter = 0
+    crashes = [0]
+
     if len(sys.argv) != 2:
         print("Usage: exif_fuzz.py <filename>")
         sys.exit(1)
+    else:
 
-    # 并行进程数
-    num_processes = 16
-    total_iterations = 800000
-    iterations_per_process = total_iterations // num_processes
+        while (counter < 20000):
+            bytes_data = get_bytes(sys.argv[1])
+            # for _ in range(10):
+            #     print(hex(bytes_data[_]))
 
-    # 初始化共享变量和锁和进程列表
-    crashes = Value('i', 0)
-    lock = Lock()
-    processes = []
+            # mutated_data = Mutation.bitflip(bytes_data)
+            mutated_data = Mutation.interest(bytes_data)
+            create_newfile(mutated_data)
+            exif_fuzz(counter, mutated_data, crashes)
+            counter = counter + 1
 
-    # 初始化进程
-    for i in range(num_processes):
-        start_counter = i * iterations_per_process
-        end_counter = (i + 1) * iterations_per_process
-        p = Process(target=fuzz_worker, args=(
-            sys.argv[1], start_counter, end_counter, crashes, lock))
-        processes.append(p)
-        p.start()
-
-    # 等待进程完成
-    for p in processes:
-        p.join()
-
-    log.success(f"Total crashes found: {crashes.value}")
+        log.success(f"Total crashes found : {crashes}")
