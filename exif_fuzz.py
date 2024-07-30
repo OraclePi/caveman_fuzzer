@@ -74,11 +74,6 @@ class Mutation:
         return data
 
 
-# fuzz函数
-# 随机选择bitflip和interest两种变异方式
-# 捕捉terminal sigmentation fault 信号
-# 将出现crash的文件保存到$PWD/output/crash.jpg
-# 达到上限迭代次数终止fuzz
 def random_mutation(data):
     num = random.randint(0, 1)
     if num == 0:
