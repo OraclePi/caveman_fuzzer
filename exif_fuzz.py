@@ -74,7 +74,7 @@ class Mutation:
         return data
 
 
-# fuwzz函数
+# fuzz函数
 # 随机选择bitflip和interest两种变异方式
 # 捕捉terminal sigmentation fault 信号
 # 将出现crash的文件保存到$PWD/output/crash.jpg
@@ -93,22 +93,12 @@ def exif_fuzz(counter, data, num):
 
     cmd = 'exif mutated.jpg'
     out, return_code = run('sh  -c '+quote(cmd), withexitstatus=True)
-    log.info(f"out : {out}")
+    # log.info(f"out : {out}")
     log.info(f"return_code : {return_code}")
 
     if b"Sigmentation" in out:
         num = num + 1
-
-        folder_path = os.getcwd()
-        folder_name = 'output'
-        folder = os.path.join(folder_path, folder_name)
-        if not os.path.exists(folder):
-            os.mkdirs(folder)
-
-        filename = 'crash{}.jpg'.format(num)
-        file = os.path.join(folder, filename)
-
-        with open(file, 'wb+') as f:
+        with open(f'./output/crash{num}.jpg', 'wb+') as f:
             f.write(data)
             f.close()
         return log.success(f"Crash found {num}")
@@ -119,12 +109,13 @@ def exif_fuzz(counter, data, num):
 if __name__ == '__main__':
     counter = 0
     crashes = 0
+
     if len(sys.argv) != 2:
         print("Usage: exif_fuzz.py <filename>")
         sys.exit(1)
     else:
 
-        while (counter < 2000):
+        while (counter < 20000):
             bytes_data = get_bytes(sys.argv[1])
             # for _ in range(10):
             #     print(hex(bytes_data[_]))
@@ -137,3 +128,5 @@ if __name__ == '__main__':
             exif_fuzz(counter, mutated_data, crashes)
 
             counter = counter + 1
+
+        log.success(f"Total crashes found : {crashes}")
