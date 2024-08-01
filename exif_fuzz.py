@@ -81,12 +81,12 @@ def exif_fuzz(counter, data, crashes):
     if counter % 100 == 0:
         log.info(f"counter : {counter}")
 
-    p = Popen(['./exif', 'mutated.jpg'], stdout=PIPE, stderr=PIPE)
+    p = Popen(['./demo', 'mutated.jpg'], stdout=PIPE, stderr=PIPE)
     out, err = p.communicate()
 
     if p.returncode == -11:
         crashes[0] = crashes[0] + 1
-        with open(f'./output/crash{crashes[0]}.jpg', 'wb+') as f:
+        with open(f'./output2/crash{crashes[0]}.jpg', 'wb+') as f:
             f.write(data)
             f.close()
         return log.success(f"Crash found {crashes[0]}")
@@ -103,13 +103,15 @@ if __name__ == '__main__':
         sys.exit(1)
     else:
 
-        while (counter < 20000):
+        while (counter < 1000000):
             bytes_data = get_bytes(sys.argv[1])
             # for _ in range(10):
             #     print(hex(bytes_data[_]))
 
             # mutated_data = Mutation.bitflip(bytes_data)
-            mutated_data = Mutation.interest(bytes_data)
+            # mutated_data = Mutation.interest(bytes_data)
+
+            mutated_data = random_mutation(bytes_data)
             create_newfile(mutated_data)
             exif_fuzz(counter, mutated_data, crashes)
             counter = counter + 1
